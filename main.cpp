@@ -2,7 +2,6 @@
 #include<math.h>
 #include<string.h>
 #include<vector>
-#include"AI.h"
 
 using namespace std;
 
