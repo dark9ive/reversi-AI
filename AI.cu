@@ -111,7 +111,7 @@ __global__ void cuda_check(int* board, int* cuda_data_out, int SIZE, int color){
 }
 
 void set_end_value(tree* root, int* board){
-	int white = 9;
+	int white = 0;
 	int black = 0;
 	for(int x = 0; x < SIZE; x++){
 		for(int y = 0; y < SIZE; y++){
