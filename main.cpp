@@ -2,10 +2,21 @@
 #include<math.h>
 #include<string.h>
 #include<vector>
+#include<fstream>
+#include<float.h>
+#include<algorithm>
+#include<unistd.h>
+#define Alpha 0.01
+#define decay_rate 0.5
 
 using namespace std;
-
 int SIZE;
+int* Init();
+void print(int*);
+
+#include"AI.cpp"
+
+void play_with_player();
 
 void print(int* board){
 	cout << "   |";
@@ -42,9 +53,12 @@ void print(int* board){
 
 int* Init(){
 	int* board = new int[SIZE];
-	*(board+SIZE/2-1) += 2*pow(4, SIZE/2-1) + 3*pow(4, SIZE/2);
-	*(board+SIZE/2) += 3*pow(4, SIZE/2-1) + 2*pow(4, SIZE/2);
-	print(board);
+	for(int index = 0; index < SIZE; index++){
+		board[index] = 0;
+	}
+	*(board+SIZE/2-1) += 3*pow(4, SIZE/2-1) + 2*pow(4, SIZE/2);
+	*(board+SIZE/2) += 2*pow(4, SIZE/2-1) + 3*pow(4, SIZE/2);
+	//print(board);
 	return board;
 }
 
@@ -96,9 +110,243 @@ int check(int* board, int posi_x, int posi_y, int color, bool fswitch){
 	return return_val;
 }
 
+void training(){
+	double* blackvalue = new double[SIZE*SIZE];
+	double* whitevalue = new double[SIZE*SIZE];
+	double* filevalue = new double[SIZE*SIZE*2+1];
+	double playcount;
+	string filename("./bin/value" + to_string(SIZE) + ".bin");
+	FILE* valfile = fopen((filename).c_str(), "rb");
+	if(!valfile){
+		cout << "Training file not exist!  Start from 0......" << endl;
+		playcount = 0;
+	}
+	else{
+		fread(filevalue, sizeof(double), SIZE*SIZE*2+1, valfile);
+		fclose(valfile);
+		playcount = filevalue[SIZE*SIZE*2];
+		cout << playcount << endl;
+		fillvalue2(blackvalue, whitevalue, filevalue);
+	}
+	for(int a = 0; a < SIZE; a++){
+		for(int b = 0; b < SIZE; b++){
+			cout << *(blackvalue+a*SIZE+b) << " ";
+		}
+		cout << endl << endl;
+	}
+	for(int a = 0; a < SIZE; a++){
+		for(int b = 0; b < SIZE; b++){
+			cout << *(whitevalue+a*SIZE+b) << " ";
+		}
+		cout << endl << endl;
+	}
+	cout << playcount << endl;
+	while(1){
+		double* sigma = new double[SIZE*SIZE*2];
+		traingame(blackvalue, whitevalue, sigma, playcount);
+		AIupdate2(blackvalue, whitevalue, sigma);
+		playcount++;
+		if(!((int)playcount%1000)){
+			cout << "Training finished " << playcount << " games." << endl;
+			if(!((int)playcount%10000)){
+				makefile2(blackvalue, whitevalue, playcount, filevalue);
+				valfile = fopen((filename).c_str(), "wb");
+				fwrite(filevalue, sizeof(double), SIZE*SIZE*2+1, valfile);
+				fclose(valfile);
+				return;
+			}
+		}
+		delete [] sigma;
+	}
+	delete [] blackvalue;
+	delete [] whitevalue;
+	delete [] filevalue;
+	return;
+}
+
+void play_with_AI(int roll){
+	int* board = Init();
+	double* blackvalue = new double[SIZE*SIZE];
+	double* whitevalue = new double[SIZE*SIZE];
+	double* filevalue = new double[SIZE*SIZE/4+SIZE/2+1];
+	string filename("./bin/value" + to_string(SIZE) + ".bin");
+	FILE* valfile = fopen((filename).c_str(), "rb");
+	if(!valfile){
+		cout << "Training file not exist! Program exit..." << endl;
+		exit(EXIT_FAILURE);
+	}
+	else{
+		fread(filevalue, sizeof(double), SIZE*SIZE/4+SIZE/2+1, valfile);
+		fclose(valfile);
+		fillvalue(blackvalue, whitevalue, filevalue);
+	}
+	if(roll == 0){
+		print(board);
+		while(1){
+			//
+			//	player's turn.
+			//
+			int max_index = -1;
+			double max_value = -DBL_MAX;
+			bool black_no_move = false;
+			vector<int> avamov;
+			for(int index = 0; index < SIZE*SIZE; index++){
+				if(check(board, index/SIZE, index%SIZE, 0, 0)){
+					avamov.push_back(index);
+				}
+			}
+			if(avamov.size() != 0){
+				while(1){
+					char xi;
+					char yi;
+					cin >> xi >> yi;
+					int x = xi - '0';
+					int y = yi - '0';
+					bool unlock = false;
+					for(int index = 0; index < avamov.size(); index++){
+						if(avamov[index] == x*SIZE+y){
+							check(board, x, y, 0, 1);
+							print(board);
+							unlock = true;
+							break;
+						}
+					}
+					if(unlock){
+						break;
+					}
+					cout << "Wrong Input!" << endl;
+				}
+			}
+			else{
+				cout << "You have no move!" << endl;
+				black_no_move = true;
+			}
+			//
+			//	AI's turn.
+			//
+			for(int index = 0; index < SIZE*SIZE; index++){
+				if(check(board, index/SIZE, index%SIZE, 1, 0)){
+					double value = get_value(board, index/SIZE, index%SIZE, blackvalue, whitevalue, 1);
+					if(value > max_value){
+						max_index = index;
+						max_value = value;
+					}
+				}
+			}
+			if(max_index == -1){
+				if(black_no_move){
+					break;
+				}
+				else{
+					cout << "No move! Your turn!" << endl;
+				}
+			}
+			else{
+				check(board, max_index/SIZE, max_index%SIZE, 1, 1);
+				sleep(1);
+				print(board);
+			}
+		}
+	}
+	else{
+		while(1){
+			//
+			//	AI's turn.
+			//
+			int max_index = -1;
+			double max_value = -DBL_MAX;
+			bool black_no_move = false;
+			for(int index = 0; index < SIZE*SIZE; index++){
+				if(check(board, index/SIZE, index%SIZE, 0, 0)){
+					double value = get_value(board, index/SIZE, index%SIZE, blackvalue, whitevalue, 0);
+					if(value > max_value){
+						max_index = index;
+						max_value = value;
+					}
+				}
+			}
+			if(max_index == -1){
+				black_no_move = true;
+				cout << "No move! Your turn!" << endl;
+			}
+			else{
+				check(board, max_index/SIZE, max_index%SIZE, 0, 1);
+				sleep(1);
+				print(board);
+			}
+			//
+			//	player's turn.
+			//
+			vector<int> avamov;
+			for(int index = 0; index < SIZE*SIZE; index++){
+				if(check(board, index/SIZE, index%SIZE, 1, 0)){
+					avamov.push_back(index);
+				}
+			}
+			if(avamov.size() != 0){
+				while(1){
+					char xi;
+					char yi;
+					cin >> xi >> yi;
+					int x = xi - '0';
+					int y = yi - '0';
+					bool unlock = false;
+					for(int index = 0; index < avamov.size(); index++){
+						if(avamov[index] == x*SIZE+y){
+							check(board, x, y, 1, 1);
+							print(board);
+							unlock = true;
+							break;
+						}
+					}
+					if(unlock){
+						break;
+					}
+					cout << "Wrong Input!" << endl;
+				}
+			}
+			else{
+				if(black_no_move){
+					break;
+				}
+				else{
+					cout << "You have no move!" << endl;
+				}
+			}
+		}
+	}
+	int chess_num[2] = {0};
+	for(int index = 0; index < SIZE*SIZE; index++){
+		switch(board[index/SIZE] >> (2*(index%SIZE)) & 0x00000003){
+			case 2:
+				chess_num[0]++;
+				break;
+			case 3:
+				chess_num[1]++;
+				break;
+			default:
+				break;
+		}
+	}
+	cout << "Game Over!\nFinal score:\t" << chess_num[0] << " : " << chess_num[1] << endl;
+	if(chess_num[0] > chess_num[1]){
+		cout << "Black wins!" << endl;
+	}
+	else if(chess_num[1] > chess_num[0]){
+		cout << "White wins!" << endl;
+	}
+	else{
+		cout << "It's a tie!" << endl;
+	}
+	delete [] board;
+	delete [] blackvalue;
+	delete [] whitevalue;
+	delete [] filevalue;
+	return;
+}
 int main(int argc, char* argv[]){
-	if(argc != 2){
-		cout << "Wrong input! Invalid chessboard size." << endl;
+	if(argc != 3 && argc != 4){
+		cout << "Wrong input! Invalid chessboard size or mode" << endl;
 		return 0;
 	}
 	else{
@@ -118,8 +366,31 @@ int main(int argc, char* argv[]){
 			return 0;
 		}
 		SIZE = buf;
+		if(argv[2][0] == '0'){
+			cout << "Playing Mode." << endl;
+			play_with_player();
+		}
+		else if(argv[2][0] == '1'){
+			cout << "Training Mode." << endl;
+			training();
+		}
+		else if(argv[2][0] == '2'){
+			if(argv[3][0] != '0' && argv[3][0] != '1'){
+				cout << "Please specify black or white!" << endl;
+				return 0;
+			}
+			cout << "Play with AI." << endl;
+			play_with_AI(argv[3][0]-'0');
+		}
+		else{
+			cout << "Please specify which running Mode!" << endl;
+		}
 	}
+	return 0;
+}
+void play_with_player(){
 	int* board = Init();
+	print(board);
 	int chess_num[2] = {2, 2};
 	int color = 0;
 	int x, y;
@@ -191,5 +462,6 @@ int main(int argc, char* argv[]){
 	else{
 		cout << "It's a tie!" << endl;
 	}
-	return 0;
+	delete [] board;
+	return;
 }
