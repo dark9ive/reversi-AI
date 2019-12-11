@@ -37,8 +37,8 @@ modecode:
  - 2 for playing with AI(need color code).
   
 colorcode:
- - 0 for playing white.
- - 1 for playing black.
+ - 0 for playing black.
+ - 1 for playing white.
   
 In each step, you must insert two coordinates -- X(↓), Y(→) in **numbers** and separate them with a space  
 If you try to put on a prohibit coordinates, your move will be returned.  
