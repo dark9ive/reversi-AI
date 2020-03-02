@@ -41,7 +41,7 @@ void print(int* board){
 }
 
 int* Init(){
-	int* board = new int[SIZE];
+	int* board = new int[SIZE]();
 	*(board+SIZE/2-1) += 2*pow(4, SIZE/2-1) + 3*pow(4, SIZE/2);
 	*(board+SIZE/2) += 3*pow(4, SIZE/2-1) + 2*pow(4, SIZE/2);
 	print(board);
